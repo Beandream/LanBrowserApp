@@ -1,0 +1,149 @@
+<!-- <canvas id="ctx" width="500" height="500" style='border: 1px solid black;'></canvas> -->
+<div id="canvas-holder"></div>
+<div id="chat-text" style="width:500px; height:100ps; overflow-y:scroll">
+    <div>Chat Connected</div>
+</div>
+
+<form id="chat-form">
+    <input id="chat-input" type="text" style="width:500px"></input>
+</form>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.3.1/lib/p5.js"></script>
+<script>
+    var ctx;
+    var chatText = document.getElementById('chat-text');
+    var chatInput = document.getElementById('chat-input');
+    var chatForm = document.getElementById('chat-form');
+
+    function setup() {
+        ctx = createCanvas(500, 500);
+        ctx.parent(document.getElementById('canvas-holder'));
+    };
+
+    var Player = (initPack) => {
+        var self = {};
+        self.id = initPack.id;
+        self.userId = initPack.userId;
+        self.x = initPack.x;
+        self.y = initPack.y;
+        Player.list[self.id] = self;
+        return self;
+    }
+    Player.list = {};
+
+    var Bullet = (initPack) => {
+        var self = {};
+        self.id = initPack.id;
+        self.x = initPack.x;
+        self.y = initPack.y;
+        Bullet.list[self.id] = self;
+        return self;
+    }
+    Bullet.list = {};
+
+    var socket = io();
+
+    socket.on('init', (data) => {
+        data.player.forEach(player => {
+            new Player(player)
+        });
+        data.bullet.forEach(bullet => {
+            new Bullet(bullet)
+        });
+    });
+
+    socket.on('update', (data) => {
+        data.player.forEach(player => {
+            var p = Player.list[player.id];
+            if (p) {
+                if(player.x !== undefined){
+                    p.x = player.x;
+                }
+                if(player.y !== undefined) {
+                    p.y = player.y;
+                }
+            }
+        });
+
+        data.bullet.forEach(bullet => {
+            var b = Bullet.list[bullet.id];
+            if (b) {
+                if(bullet.x !== undefined){
+                    b.x = bullet.x;
+                }
+                if(bullet.y !== undefined) {
+                    b.y = bullet.y;
+                }
+            }
+        });
+    });
+
+    socket.on('remove', (data) => {
+        data.player.forEach(player => {
+            delete Player.list[player];
+        });
+        data.bullet.forEach(bullet => {
+            delete Bullet.list[bullet];
+        });
+    });
+
+    function draw() {
+        background(220);
+        rectMode(RADIUS);
+        for(var i in Player.list) {
+            rect(Player.list[i].x, Player.list[i].y, 10, 10);
+        }
+        for(var i in Bullet.list) {
+            rect(Bullet.list[i].x, Bullet.list[i].y, 2, 2);
+        }
+    }
+
+    socket.on('chat', (data) => {
+        chatText.innerHTML += '<div>' + data + '</div>';
+    });
+
+    chatForm.onsubmit = (e) => {
+        e.preventDefault();
+        socket.emit('sendMsgToServer', chatInput.value);
+        chatInput.value = '';
+    }
+
+    document.onkeydown = (event) => {
+        if (event.keyCode === 68) //d
+            socket.emit('keyPress', {inputId: 'right', state: true});
+        else if (event.keyCode === 83) //s
+            socket.emit('keyPress', {inputId: 'down', state: true});
+        else if (event.keyCode === 65) //a
+            socket.emit('keyPress', {inputId: 'left', state: true});
+        else if (event.keyCode === 87) //w
+            socket.emit('keyPress', {inputId: 'up', state: true});
+    }
+
+    document.onkeyup = (event) => {
+        if (event.keyCode === 68) //d
+            socket.emit('keyPress', {inputId: 'right', state: false});
+        else if (event.keyCode === 83) //s
+            socket.emit('keyPress', {inputId: 'down', state: false});
+        else if (event.keyCode === 65) //a
+            socket.emit('keyPress', {inputId: 'left', state: false});
+        else if (event.keyCode === 87) //w
+            socket.emit('keyPress', {inputId: 'up', state: false});
+    }
+
+    document.onmousedown = (event) => {
+        socket.emit('keyPress', {inputId:'attack', state: true});
+    }
+
+    document.onmouseup = (event) => {
+        socket.emit('keyPress', {inputId:'attack', state: false});
+    }
+
+    document.onmousemove = (event) => {
+        var x = -250 + event.clientX - 8;
+        var y = -250 + event.clientY - 8;
+        var angle = Math.atan2(y, x) / Math.PI * 180;
+        socket.emit('keyPress',{inputId:'mouseAngle', state:angle});
+    }
+
+</script>
