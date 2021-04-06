@@ -51,6 +51,8 @@ var Player = (id) => {
     self.maxSpd = 10;
     self.score = 0;
     self.color = Math.floor(Math.random()*16777215).toString(16);
+    self.hp = 10;
+    self.hpMax = 10;
 
     var super_update = self.update;
     self.update = () => {
@@ -69,28 +71,45 @@ var Player = (id) => {
     }
 
     self.updateSpd = () => {
-        if(self.pressingRight)
+        if(self.pressingRight && self.x < 950)
             self.spdX = self.maxSpd;
-        else if (self.pressingLeft)
+        else if (self.pressingLeft && self.x > -950)
             self.spdX = -self.maxSpd;
         else
             self.spdX = 0;
-        if (self.pressingUp)
+        if (self.pressingUp && self.y > -950)
             self.spdY = -self.maxSpd;
-        else if (self.pressingDown)
+        else if (self.pressingDown && self.y < 950)
             self.spdY = self.maxSpd;
         else
             self.spdY = 0;
     }
 
+    self.getInitPack = () => {
+        return {
+            id:self.id,
+            x:self.x,
+            y:self.y,
+            color:self.color,
+            hp:self.hp,
+            hpMax:self.hpMax,
+            score:self.score
+        }
+    }
+
+    self.getUpdatePack = () => {
+        return {
+            id:self.id,
+            x:self.x,
+            y:self.y,
+            hp:self.hp,
+            score:self.score
+        }
+    }
+
     Player.list[id] = self;
 
-    initPack.player.push({
-        id:self.id,
-        x:self.x,
-        y:self.y,
-        color:self.color
-    });
+    initPack.player.push(self.getInitPack());
 
     return self
 }
@@ -114,6 +133,22 @@ Player.onConnect = (socket) => {
         else if(data.inputId === 'mouseAngle')
             player.mouseAngle = data.state;
     });
+
+    var players = [];
+    for(var i in Player.list) {
+        players.push(Player.list[i].getInitPack());
+    }
+
+    var bullets = [];
+    for(var i in Bullet.list) {
+        bullets.push(Bullet.list[i].getInitPack());
+    }
+
+    socket.emit('init', {
+        selfId:socket.id,
+        player:players,
+        bullet:bullets
+    })
 }
 
 Player.onDisconnect = (socket) => {
@@ -127,11 +162,7 @@ Player.update = () => {
     for(var i in Player.list) {
         var player = Player.list[i];
         player.update();
-        pack.push({
-            id:player.id,
-            x:player.x,
-            y:player.y
-        })
+        pack.push(player.getUpdatePack());
     }
     return pack;
 }
@@ -139,8 +170,8 @@ Player.update = () => {
 var Bullet = (parent, angle) => {
     var self = Entity();
     self.id = Math.random();
-    self.spdX = Math.cos(angle/180*Math.PI) * 10;
-    self.spdY = Math.sin(angle/180*Math.PI) * 10;
+    self.spdX = Math.cos(angle/180*Math.PI) * 20;
+    self.spdY = Math.sin(angle/180*Math.PI) * 20;
 
     self.parent = parent;
 
@@ -155,19 +186,41 @@ var Bullet = (parent, angle) => {
         for (var i in Player.list) {
             var p = Player.list[i];
             if (self.getDistance(p) < 32 && self.parent !== p.id) {
-                //handle collision such as hp--
+                
+                p.hp -= 1;
+                if(p.hp <= 0 ) {
+                    var shooter = Player.list[self.parent];
+                    if(shooter) {
+                        shooter.score += 1;
+                    }
+                    p.hp = p.hpMax;
+                    p.x = Math.random() * 950;
+                    p.y = Math.random() * 950;
+                }
                 self.toRemove = true;
             }
         }
     }
 
+    self.getInitPack = () => {
+        return{
+            id:self.id,
+            x:self.x,
+            y:self.y
+        }
+    }
+
+    self.getUpdatePack = () => {
+        return{
+            id:self.id,
+            x:self.x,
+            y:self.y
+        }
+    }
+
     Bullet.list[self.id] = self;
 
-    initPack.bullet.push({
-        id:self.id,
-        x:self.x,
-        y:self.y
-    });
+    initPack.bullet.push(self.getInitPack());
 
     return self;
 }
@@ -186,11 +239,7 @@ Bullet.update = () => {
             delete Bullet.list[i];
             removePack.bullet.push(bullet.id);
         } else {      
-            pack.push({
-                id:bullet.id,
-                x:bullet.x,
-                y:bullet.y
-            })
+            pack.push(bullet.getUpdatePack());
         }
     }
     return pack;

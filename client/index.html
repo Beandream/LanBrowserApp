@@ -15,6 +15,10 @@
     var chatText = document.getElementById('chat-text');
     var chatInput = document.getElementById('chat-input');
     var chatForm = document.getElementById('chat-form');
+    var bg;
+    function preload() {
+        bg = loadImage('client/assets/map.png');
+    }
 
     function setup() {
         ctx = createCanvas(500, 500);
@@ -27,7 +31,34 @@
         self.userId = initPack.userId;
         self.x = initPack.x;
         self.y = initPack.y;
+        self.hp = initPack.hp;
+        self.hpMax = initPack.hpMax;
+        self.score = initPack.score;
+        self.color = initPack.color;
+
+        self.draw = () => {
+
+            var x = self.x - Player.list[selfId].x + 500 / 2;
+            var y = self.y - Player.list[selfId].y + 500 / 2;
+
+            fill('#' + self.color);
+            rect(x, y, 10, 10);
+
+            var hpWidth = 30 * self.hp / self.hpMax;
+            fill('#DC143C');
+            rect(x, y - 20, hpWidth, 2);
+
+
+            if (self.id !== selfId) {
+                fill(0);
+                textSize(16);
+                textAlign(CENTER);
+                text(self.score, x, y - 30);
+            }
+        }
+
         Player.list[self.id] = self;
+
         return self;
     }
     Player.list = {};
@@ -37,19 +68,36 @@
         self.id = initPack.id;
         self.x = initPack.x;
         self.y = initPack.y;
+
+        self.draw = () => {
+
+            var x = self.x - Player.list[selfId].x + 500 / 2;
+            var y = self.y - Player.list[selfId].y + 500 / 2;
+
+            fill(0);
+            rect(x, y, 2, 2);
+        }
+
         Bullet.list[self.id] = self;
         return self;
     }
     Bullet.list = {};
 
+    var selfId = null;
+
     var socket = io();
 
     socket.on('init', (data) => {
+
+        if(data.selfId) {
+            selfId = data.selfId;
+        }
+
         data.player.forEach(player => {
-            new Player(player)
+            Player.list[player.id] = Player(player);
         });
         data.bullet.forEach(bullet => {
-            new Bullet(bullet)
+            Bullet.list[bullet.id] = Bullet(bullet);
         });
     });
 
@@ -62,6 +110,13 @@
                 }
                 if(player.y !== undefined) {
                     p.y = player.y;
+                }
+
+                if(player.hp !== undefined){
+                    p.hp = player.hp;
+                }
+                if(player.score !== undefined) {
+                    p.score = player.score;
                 }
             }
         });
@@ -89,14 +144,32 @@
     });
 
     function draw() {
+        if (!selfId){
+            return;
+        }
         background(220);
+        drawbg();
+        drawScore();
         rectMode(RADIUS);
         for(var i in Player.list) {
-            rect(Player.list[i].x, Player.list[i].y, 10, 10);
+            Player.list[i].draw();
         }
         for(var i in Bullet.list) {
-            rect(Bullet.list[i].x, Bullet.list[i].y, 2, 2);
+            Bullet.list[i].draw();
         }
+    }
+
+    var drawbg = () => {
+        var x = 500 / 2 - Player.list[selfId].x
+        var y = 500 / 2 - Player.list[selfId].y
+        image(bg, x - 1000, y - 1000);
+    }
+
+    var drawScore = () => {
+        fill(0);
+        textSize(32);
+        textAlign(LEFT);
+        text(Player.list[selfId].score, 10, 30);
     }
 
     socket.on('chat', (data) => {
